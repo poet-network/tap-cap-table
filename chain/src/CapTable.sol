@@ -4,9 +4,10 @@ pragma solidity ^0.8.20;
 import "openzeppelin-contracts/contracts/access/Ownable.sol";
 import "./transactions/StockIssuanceTX.sol";
 import "./transactions/StockTransferTX.sol";
-import { StockIssuance, StockTransfer } from "./lib/Structs.sol";
+import { Issuer, Stakeholder, StockClass, ActivePosition, StockIssuance, StockTransfer } from "./lib/Structs.sol";
 import "./lib/TxHelper.sol";
 import "./lib/Arrays.sol";
+import "./lib/TransferHelper.sol";
 
 import "forge-std/console.sol";
 
@@ -18,32 +19,6 @@ contract CapTable is Ownable {
         - Vesting Terms
         - Valuations
     */
-
-    struct Issuer {
-        bytes16 id;
-        string legal_name;
-    }
-
-    struct Stakeholder {
-        bytes16 id;
-        string stakeholder_type; // ["INDIVIDUAL", "INSTITUTION"]
-        string current_relationship; // ["ADVISOR","BOARD_MEMBER","CONSULTANT","EMPLOYEE","EX_ADVISOR" "EX_CONSULTANT","EX_EMPLOYEE","EXECUTIVE","FOUNDER","INVESTOR","NON_US_EMPLOYEE","OFFICER","OTHER"]
-    }
-
-    // can be later extended to add things like seniority, conversion_rights, etc.
-    struct StockClass {
-        bytes16 id;
-        string class_type; // ["COMMON", "PREFERRED"]
-        uint256 price_per_share; // Per-share price this stock class was issued for
-        uint256 initial_shares_authorized;
-    }
-
-    struct ActivePosition {
-        bytes16 stock_class_id;
-        uint256 quantity;
-        uint256 share_price;
-        uint40 timestamp;
-    }
 
     Issuer public issuer;
     Stakeholder[] public stakeholders;
@@ -105,6 +80,78 @@ contract CapTable is Ownable {
         }
     }
 
+    // function transferStock(
+    //     bytes16 transferorStakeholderId,
+    //     bytes16 transfereeStakeholderId,
+    //     bytes16 stockClassId, // TODO: verify that we would have fong would have the stock class
+    //     bool isBuyerVerified,
+    //     uint256 quantity,
+    //     uint256 share_price
+    // ) external {
+    //     // Checks related to entities' existence
+    //     require(stakeholderIndex[transferorStakeholderId] > 0, "No transferor");
+    //     require(stakeholderIndex[transfereeStakeholderId] > 0, "No transferee");
+    //     require(stockClassIndex[stockClassId] > 0, "Invalid stock class");
+
+    //     // Checks related to transaction validity
+    //     require(isBuyerVerified, "Buyer unverified");
+    //     require(quantity > 0, "Invalid quantity");
+    //     require(share_price > 0, "Invalid price");
+
+    //     require(activeSecurityIdsByStockClass[transferorStakeholderId][stockClassId].length > 0, "No active security ids found");
+    //     bytes16[] memory activeSecurityIDs = activeSecurityIdsByStockClass[transferorStakeholderId][stockClassId];
+
+    //     uint256 sum = 0;
+    //     uint256 numSecurityIds = 0;
+
+    //     for (uint256 index = 0; index < activeSecurityIDs.length; index++) {
+    //         ActivePosition memory activePosition = activePositions[transferorStakeholderId][activeSecurityIDs[index]];
+    //         sum += activePosition.quantity;
+
+    //         if (sum >= quantity) {
+    //             numSecurityIds += 1;
+    //             break;
+    //         } else {
+    //             numSecurityIds += 1;
+    //         }
+    //     }
+
+    //     console.log("quantity ", quantity);
+    //     console.log("sum ", sum);
+
+    //     require(quantity <= sum, "insufficient shares");
+
+    //     uint256 remainingQuantity = quantity; // This will keep track of the remaining quantity to be transferred
+
+    //     for (uint256 index = 0; index < numSecurityIds; index++) {
+    //         ActivePosition memory activePosition = activePositions[transferorStakeholderId][activeSecurityIDs[index]];
+
+    //         uint256 transferQuantity; // This will be the quantity to transfer in this iteration
+
+    //         if (activePosition.quantity <= remainingQuantity) {
+    //             transferQuantity = activePosition.quantity;
+    //         } else {
+    //             transferQuantity = remainingQuantity;
+    //         }
+
+    //         _transferSingleStock(
+    //             transferorStakeholderId,
+    //             transfereeStakeholderId,
+    //             stockClassId,
+    //             transferQuantity,
+    //             share_price,
+    //             activeSecurityIDs[index]
+    //         );
+
+    //         remainingQuantity -= transferQuantity; // Reduce the remaining quantity
+
+    //         // If there's no more quantity left to transfer, break out of the loop
+    //         if (remainingQuantity == 0) {
+    //             break;
+    //         }
+    //     }
+    // }
+
     function transferStock(
         bytes16 transferorStakeholderId,
         bytes16 transfereeStakeholderId,
@@ -123,58 +170,26 @@ contract CapTable is Ownable {
         require(quantity > 0, "Invalid quantity");
         require(share_price > 0, "Invalid price");
 
-        require(activeSecurityIdsByStockClass[transferorStakeholderId][stockClassId].length > 0, "No active security ids found");
-        bytes16[] memory activeSecurityIDs = activeSecurityIdsByStockClass[transferorStakeholderId][stockClassId];
+        TransferHelper.TransferData memory transferData = TransferHelper.calculateTransferData(
+            activeSecurityIdsByStockClass,
+            activePositions,
+            transferorStakeholderId,
+            stockClassId,
+            quantity
+        );
 
-        uint256 sum = 0;
-        uint256 numSecurityIds = 0;
+        require(quantity <= transferData.sum, "insufficient shares");
 
-        for (uint256 index = 0; index < activeSecurityIDs.length; index++) {
-            ActivePosition memory activePosition = activePositions[transferorStakeholderId][activeSecurityIDs[index]];
-            sum += activePosition.quantity;
-
-            if (sum >= quantity) {
-                numSecurityIds += 1;
-                break;
-            } else {
-                numSecurityIds += 1;
-            }
-        }
-
-        console.log("quantity ", quantity);
-        console.log("sum ", sum);
-
-        require(quantity <= sum, "insufficient shares");
-
-        uint256 remainingQuantity = quantity; // This will keep track of the remaining quantity to be transferred
-
-        for (uint256 index = 0; index < numSecurityIds; index++) {
-            ActivePosition memory activePosition = activePositions[transferorStakeholderId][activeSecurityIDs[index]];
-
-            uint256 transferQuantity; // This will be the quantity to transfer in this iteration
-
-            if (activePosition.quantity <= remainingQuantity) {
-                transferQuantity = activePosition.quantity;
-            } else {
-                transferQuantity = remainingQuantity;
-            }
-
-            _transferSingleStock(
-                transferorStakeholderId,
-                transfereeStakeholderId,
-                stockClassId,
-                transferQuantity,
-                share_price,
-                activeSecurityIDs[index]
-            );
-
-            remainingQuantity -= transferQuantity; // Reduce the remaining quantity
-
-            // If there's no more quantity left to transfer, break out of the loop
-            if (remainingQuantity == 0) {
-                break;
-            }
-        }
+        TransferHelper.executeTransfer(
+            activePositions,
+            transferorStakeholderId,
+            transfereeStakeholderId,
+            stockClassId,
+            quantity,
+            share_price,
+            transferData,
+            _transferSingleStock
+        );
     }
 
     // can extend this to check that it's not issuing more than stock_class initial shares issued
@@ -414,7 +429,69 @@ contract CapTable is Ownable {
         return uint40(block.timestamp);
     }
 
-    // isBuyerVerified is a placeholder for a signature, account or hash that confirms the buyer's identity.
+    // // isBuyerVerified is a placeholder for a signature, account or hash that confirms the buyer's identity.
+    // function _transferSingleStock(
+    //     bytes16 transferorStakeholderId,
+    //     bytes16 transfereeStakeholderId,
+    //     bytes16 stockClassId,
+    //     uint256 quantity,
+    //     uint256 sharePrice,
+    //     bytes16 securityId
+    // ) internal onlyOwner {
+    //     bytes16 transferorSecurityId = securityId;
+    //     ActivePosition memory transferorActivePosition = getActivePositionBySecurityId(transferorStakeholderId, transferorSecurityId);
+
+    //     // Checks related to transfer feasibility
+    //     require(transferorActivePosition.quantity >= quantity, "Insufficient shares");
+
+    //     nonce++;
+    //     StockIssuance memory transfereeIssuance = TxHelper.createStockIssuanceStructForTransfer(
+    //         nonce,
+    //         transfereeStakeholderId,
+    //         quantity,
+    //         sharePrice,
+    //         stockClassId
+    //     );
+
+    //     _issueStock(transfereeIssuance);
+    //     _updateContext(transfereeIssuance);
+
+    //     uint256 balanceForTransferor = transferorActivePosition.quantity - quantity;
+
+    //     bytes16 balance_security_id;
+
+    //     if (balanceForTransferor > 0) {
+    //         nonce++;
+    //         StockIssuance memory transferorBalanceIssuance = TxHelper.createStockIssuanceStructForTransfer(
+    //             nonce,
+    //             transferorStakeholderId,
+    //             balanceForTransferor,
+    //             transferorActivePosition.share_price,
+    //             stockClassId
+    //         );
+
+    //         _issueStock(transferorBalanceIssuance);
+    //         _updateContext(transfereeIssuance);
+
+    //         balance_security_id = transferorBalanceIssuance.security_id;
+    //     } else {
+    //         balance_security_id = "";
+    //     }
+
+    //     nonce++;
+    //     StockTransfer memory transfer = TxHelper.createStockTransferStruct(
+    //         nonce,
+    //         quantity,
+    //         transferorSecurityId,
+    //         transfereeIssuance.security_id,
+    //         balance_security_id
+    //     );
+    //     _transferStock(transfer);
+
+    //     _deleteActivePosition(transferorStakeholderId, transferorSecurityId);
+    //     _deleteActiveSecurityIdsByStockClass(transferorStakeholderId, stockClassId, transferorSecurityId);
+    // }
+
     function _transferSingleStock(
         bytes16 transferorStakeholderId,
         bytes16 transfereeStakeholderId,
@@ -423,57 +500,20 @@ contract CapTable is Ownable {
         uint256 sharePrice,
         bytes16 securityId
     ) internal onlyOwner {
-        bytes16 transferorSecurityId = securityId;
-        ActivePosition memory transferorActivePosition = getActivePositionBySecurityId(transferorStakeholderId, transferorSecurityId);
-
-        // Checks related to transfer feasibility
-        require(transferorActivePosition.quantity >= quantity, "Insufficient shares");
-
-        nonce++;
-        StockIssuance memory transfereeIssuance = TxHelper.createStockIssuanceStructForTransfer(
-            nonce,
+        nonce = TransferHelper.transferSingleStock(
+            activePositions,
+            transferorStakeholderId,
             transfereeStakeholderId,
+            stockClassId,
             quantity,
             sharePrice,
-            stockClassId
+            securityId,
+            _issueStock,
+            _updateContext,
+            _transferStock,
+            _deleteActivePosition,
+            _deleteActiveSecurityIdsByStockClass,
+            nonce
         );
-
-        _issueStock(transfereeIssuance);
-        _updateContext(transfereeIssuance);
-
-        uint256 balanceForTransferor = transferorActivePosition.quantity - quantity;
-
-        bytes16 balance_security_id;
-
-        if (balanceForTransferor > 0) {
-            nonce++;
-            StockIssuance memory transferorBalanceIssuance = TxHelper.createStockIssuanceStructForTransfer(
-                nonce,
-                transferorStakeholderId,
-                balanceForTransferor,
-                transferorActivePosition.share_price,
-                stockClassId
-            );
-
-            _issueStock(transferorBalanceIssuance);
-            _updateContext(transfereeIssuance);
-
-            balance_security_id = transferorBalanceIssuance.security_id;
-        } else {
-            balance_security_id = "";
-        }
-
-        nonce++;
-        StockTransfer memory transfer = TxHelper.createStockTransferStruct(
-            nonce,
-            quantity,
-            transferorSecurityId,
-            transfereeIssuance.security_id,
-            balance_security_id
-        );
-        _transferStock(transfer);
-
-        _deleteActivePosition(transferorStakeholderId, transferorSecurityId);
-        _deleteActiveSecurityIdsByStockClass(transferorStakeholderId, stockClassId, transferorSecurityId);
     }
 }
