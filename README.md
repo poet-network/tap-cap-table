@@ -96,7 +96,19 @@ In the `chain` directory, run:
 anvil
 ```
 
-## Seeding the cap table with sample data
+## Deploying external libraries
+
+In our architecture, each transaction is mapped to an external library, which ensures bytecode limits are never met.
+
+In order to deploy these libraries, ensure you have the server and anvil running. Then `run yarn build` inside of the root directory.
+
+This might take a couple of minutes, since each library is being deployed one at a time using a dependency graph that's generated with the command.
+
+## Seeding and deploying the cap table with sample data
+
+There are two ways of seeding the cap table:
+
+### Using the manifest file
 
 We provide sample data to test deploying the cap table onchain. You can inspect and change it in [/src/db/samples/notPoet](./src/db/samples/notPoet/), which contains [Manifest.ocf.json](./src/db/samples/notPoet/Manifest.ocf.json) file with [Poet's](https://poet.network) actual cap table, and some partial data in primary objects (stakeholders, stock classes, vesting terms, valuation, etc).
 
@@ -115,11 +127,27 @@ This operation will perform several checks. If everything is in order, it will d
 3. Check if the cap table is already in the database. If it is, it will return an error
 4. Mint the cap table onchain if all checks pass, then save it to the Mongo DB instance.
 
-In developemnt and testing, you will need to deseed the database before you can seed it again. To do that, run:
+In development and testing, you will need to deseed the database before you can seed it again. To do that, run:
 
 ```sh
 yarn deseed
 ```
+
+### Using sample scripts that call our APIs
+
+In another terminal (ensuring you’re in the root directory) run `node src/scripts/testIssuance.js.` If you navigate to `/scripts` directory, you’ll be able to interact with the sample data.
+
+## Debugging Steps
+We're shipping code fast. If you run into an issue, particularly one that results in an onchain error of "could not estimate gas", it's likely that the forge build cache is out of sync.
+
+Inside of `/chain`:
+
+- restart anvil
+- run `forge clean`
+- followed by `forge build --via-ir`
+- move back to the root directory, then run `yarn build`
+
+After, you can seed and deploy the cap table with either of the above options. If the bug persists, please open an issue with an attached screenshot and steps to reproduce.
 
 ## Contributing
 
