@@ -9,6 +9,7 @@ cbor_metadata = false
 
 [rpc_endpoints]
 optimism_goerli = "${OPTIMISM_GOERLI_RPC_URL}"
+base_goerli = "${BASE_GOERLI_RPC_URL}"
 local = "${LOCAL_RPC_URL}"
 
 [etherscan]

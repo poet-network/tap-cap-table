@@ -12,7 +12,8 @@ async function deployCapTableLocal(issuerId, issuerName, initial_shares_authoriz
     // Replace with your private key and provider endpoint
     const WALLET_PRIVATE_KEY = process.env.PRIVATE_KEY_FAKE_ACCOUNT;
     const customNetwork = {
-        chainId: 31337,
+        // chainId: 31337,
+        chainId: 84531,
         name: "local",
     };
     const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545", customNetwork);
@@ -22,12 +23,12 @@ async function deployCapTableLocal(issuerId, issuerName, initial_shares_authoriz
     const factory = await readFactory();
     const factoryAddress = factory[0].factory_address;
 
-    console.log('factory ', factory)
-    
-    if(!factoryAddress) {
+    console.log("factory ", factory);
+
+    if (!factoryAddress) {
         throw new Error(`❌ | Factory address not found`);
     }
-   
+
     const capTableFactory = new ethers.Contract(factoryAddress, CAP_TABLE_FACTORY.abi, wallet);
 
     console.log(
@@ -43,7 +44,7 @@ async function deployCapTableLocal(issuerId, issuerName, initial_shares_authoriz
 
     const latestCapTableProxyContractAddress = await capTableFactory.capTableProxies(capTableCount - BigInt(1));
 
-    const contract = new ethers.Contract(latestCapTableProxyContractAddress, CAP_TABLE.abi, wallet); 
+    const contract = new ethers.Contract(latestCapTableProxyContractAddress, CAP_TABLE.abi, wallet);
 
     console.log("⏳ | Waiting for contract to be deployed...");
     console.log("cap table contract address ", latestCapTableProxyContractAddress);
@@ -58,14 +59,23 @@ async function deployCapTableLocal(issuerId, issuerName, initial_shares_authoriz
 }
 
 async function deployCapTableOptimismGoerli(issuerId, issuerName, initial_shares_authorized) {
+    return deployCapTableTestnet(issuerId, issuerName, initial_shares_authorized, process.env.OPTIMISM_GOERLI_RPC_URL);
+}
+
+async function deployCapTableBaseGoerli(issuerId, issuerName, initial_shares_authorized) {
+    return deployCapTableTestnet(issuerId, issuerName, initial_shares_authorized, process.env.BASE_GOERLI_RPC_URL);
+}
+
+async function deployCapTableTestnet(issuerId, issuerName, initial_shares_authorized, rpcUrl) {
     const WALLET_PRIVATE_KEY = process.env.PRIVATE_KEY_POET_TEST;
-    const provider = new ethers.JsonRpcProvider(process.env.OPTIMISM_GOERLI_RPC_URL);
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(WALLET_PRIVATE_KEY, provider);
 
     const factory = await readFactory(); // Assumes this function fetches the factory address for Goerli
     const factoryAddress = factory[0].factory_address;
 
-    if(!factoryAddress) {
+    if (!factoryAddress) {
         throw new Error(`❌ | Factory address not found`);
     }
 
@@ -102,6 +112,8 @@ async function deployCapTable(chain, issuerId, issuerName, initial_shares_author
         return deployCapTableLocal(issuerId, issuerName, initial_shares_authorized);
     } else if (chain === "optimism-goerli") {
         return deployCapTableOptimismGoerli(issuerId, issuerName, initial_shares_authorized);
+    } else if (chain === "base-goerli") {
+        return deployCapTableBaseGoerli(issuerId, issuerName, initial_shares_authorized);
     } else {
         throw new Error(`❌ | Unsupported chain: ${chain}`);
     }

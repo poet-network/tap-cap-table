@@ -13,9 +13,11 @@ const main = async () => {
     await sleep(3000);
 
     console.log("⏳| Creating stock class");
+    const issuerId = issuerResponse.data.issuer._id;
+    // const issuerId = "8a7e8341-671f-470b-b0f1-6defdaa1fd9e";
 
     // create stockClass
-    const stockClassResponse = await axios.post("http://localhost:8080/stock-class/create", stockClass(issuerResponse.data.issuer._id));
+    const stockClassResponse = await axios.post("http://localhost:8080/stock-class/create", stockClass(issuerId));
 
     console.log("✅ | stockClassResponse", stockClassResponse.data);
 
@@ -31,7 +33,7 @@ const main = async () => {
 
     await sleep(3000);
 
-    console.log("⏳ | Creating second stakeholder…");
+    console.log("⏳ | Creating stakeholder…");
 
     const stakeholder1Response = await axios.post("http://localhost:8080/stakeholder/create", stakeholder1(issuerResponse.data.issuer._id));
 

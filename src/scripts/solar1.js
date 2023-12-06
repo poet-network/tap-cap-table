@@ -1,4 +1,6 @@
-const initialShares = "10000000";
+const initialShares = "1000000";
+// 10000000000000000
+// 6000000000000000
 
 export const issuer = {
     legal_name: "Solar Energy1",
@@ -62,13 +64,13 @@ export const stakeholder1 = (issuerId) => {
         issuerId,
         data: {
             name: {
-                legal_name: "Solar CEO",
+                legal_name: "Solar Buyer",
                 first_name: "Solar",
-                last_name: "CEO",
+                last_name: "Buyer",
             },
             issuer_assigned_id: "",
             stakeholder_type: "INDIVIDUAL",
-            current_relationship: "EMPLOYEE",
+            current_relationship: "INVESTOR",
             // primary_contact: {
             //     name: {
             //         legal_name: "Solar CEO",

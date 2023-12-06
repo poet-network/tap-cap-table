@@ -73,12 +73,14 @@ async function deployLib(lib, libs) {
         console.log(`Deploying ${lib.libraryName || lib.fileName}\n`);
         const librariesDepsArgs = lib.deps.map((idx) => ["--libraries", `${libs[idx].path}:${libs[idx].libraryName}:${libs[idx].address}`]).flat();
         console.log("librariesDepsArgs:", librariesDepsArgs);
+        console.log("libpath", `${lib.path}:${lib.libraryName || lib.fileName}`);
         const args = [
             "c",
             "-r",
             "http://127.0.0.1:8545",
-            "--chain",
-            31337,
+            // "--chain",
+            // // 31337,
+            // 84541,
             "--private-key",
             privateKey,
             `${lib.path}:${lib.libraryName || lib.fileName}`,
@@ -89,11 +91,13 @@ async function deployLib(lib, libs) {
         const subprocess = spawn("forge", args);
 
         subprocess.stdout.on("data", (data) => {
+            console.log("subprocess stdout data", lib.fileName, lib.address, data);
             lib.address = JSON.parse(data).deployedTo;
             console.log(`${lib.fileName} Deployed Successfully - Address: ${lib.address}\n`);
         });
 
         subprocess.stderr.on("data", (data) => {
+            console.log("subprocess stderr data", lib.fileName, data.toString());
             reject(new Error(`${lib.fileName}::stderr: ${data}`));
         });
 
@@ -108,19 +112,23 @@ async function deployLib(lib, libs) {
 }
 
 const deployAndLinkLibs = async (libs) => {
-    const buildProcess = spawn("forge", ["build", "--via-ir"]);
+    // const buildProcess = spawn("forge", ["build", "--via-ir"]);
 
-    buildProcess.stdout.on("data", (data) => {
-        console.log(`build::stdout ${data}`);
-    });
+    // buildProcess.stdout.on("data", (data) => {
+    //     console.log(`build::stdout ${data}`);
+    // });
 
-    buildProcess.stderr.on("data", (data) => {
-        console.error(`build::stderr ${data}`);
-    });
+    // buildProcess.stderr.on("data", (data) => {
+    //     console.error(`build::stderr ${data}`);
+    // });
 
-    buildProcess.on("close", (code) => {
-        console.log(`build::child process exited with code ${code}`);
-    });
+    // buildProcess.on("close", (code) => {
+    //     console.log(`build::child process exited with code ${code}`);
+    // });
+
+    for (const lib of libs) {
+        console.log("lib deps", lib.deps);
+    }
 
     for (const lib of libs) {
         await deployLib(lib, libs);
