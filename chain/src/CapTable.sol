@@ -186,7 +186,7 @@ contract CapTable is ICapTable, AccessControlDefaultAdminRulesUpgradeable {
     }
 
     /// @inheritdoc ICapTable
-    function issueStock(StockIssuanceParams calldata params) external override onlyAdmin {
+    function issueStock(StockIssuanceParams calldata params) external override onlyOperator {
         _checkStakeholderIsStored(params.stakeholder_id);
         _checkInvalidStockClass(params.stock_class_id);
 
