@@ -24,9 +24,9 @@ import {
     StockRetraction,
     StockTransfer,
 } from "./structs.js";
+import mongoose from "mongoose";
 
 const abiCoder = new AbiCoder();
-const eventQueue = [];
 let issuerEventFired = false;
 
 const txMapper = {
@@ -74,10 +74,51 @@ async function startOnchainListeners(contract, provider, issuerId, libraries) {
     setInterval(processEventQueue, 5000); // Process every 5 seconds
 }
 
-async function processEventQueue() {
-    const sortedEventQueue = eventQueue.sort((a, b) => a.timestamp - b.timestamp);
-    while (sortedEventQueue.length > 0) {
-        const event = eventQueue[0];
+async function startSynchronousEventProcessor(contract, libraries) {
+    while (true) {
+        await processEvents(contract, libraries.txHelper);
+    }
+}
+
+async function processEvents(contract, txHelper) {
+    // TODO -- ensure we never do more than 100 blocks, for example to ensure lower load on mongo from large txs
+    const startBlock = mongoose.getLastProcessedBlock();
+    const toBlock = await txHelper.provider.getBlockNumber();
+
+
+    let events = [];
+    const contractEvents = await contract.queryFilter("*", startBlock, toBlock);
+    const handleEventTypes = {
+        "StakeholderCreated": "STAKEHOLDER_CREATED",
+        "StockClassCreated": "STOCK_CLASS_CREATED",
+    }
+    contractEvents.map((event) => {
+        if (event.blockNumber === startBlock) {
+            return;
+        }
+
+        // TODO: the same processing as contract.on above
+        if (event.type in handleEventTypes) {
+            events.push({ type: handleEventTypes[event.type], data: ... });
+        }
+    });    
+
+    const txEvents = await txHelper.queryFilter("*", startBlock, toBlock);
+    txEvents.map((event) => {
+       if (event.blockNumber === startBlock) {  
+        return;
+       }       
+        // TODO: the same processing as libraries.txHelper.on     
+       events.push(...);
+    });
+
+    persistEvents(events, toBlock);
+}
+
+async function persistEvents(events, toBlock) {
+    // TODO: wrap everything in a transaction!
+    for (i = 0; i < events.length; i++) {
+        const event = events[i];
         switch (event.type) {
             case "STAKEHOLDER_CREATED":
                 await handleStakeholder(event.data);
@@ -116,8 +157,9 @@ async function processEventQueue() {
                 throw new Error("Invalid transaction type");
                 break;
         }
-        sortedEventQueue.shift();
     }
+    // TODO
+    mongoose.setLastProcessedBlock(toBlock);
 }
 
 export default startOnchainListeners;
